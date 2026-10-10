@@ -1,0 +1,25 @@
+# Web / API layer
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.0
+requests>=2.31
+streamlit>=1.33
+
+# Retrieval (multilingual-e5 embeddings + FAISS)
+sentence-transformers>=2.7
+torch>=2.1
+faiss-cpu>=1.8
+numpy>=1.26
+
+# LLM generation + LLM-as-Judge (Gemini)
+google-generativeai>=0.7
+
+# Knowledge-base scraping
+wikipedia-api>=0.6
+
+# Evaluation (adjudicator.py)
+datasets>=2.19
+pandas>=2.0
+tqdm>=4.66
+
+# Note: sqlite3 ships with Python's standard library, so it is not listed.
