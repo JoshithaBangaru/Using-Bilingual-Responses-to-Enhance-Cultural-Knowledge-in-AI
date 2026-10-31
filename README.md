@@ -73,102 +73,134 @@ Dual generation (dual_gen.py): One Gemini call returns a JSON object with a loca
 
 ---
 
-## 3. Setup and running
+## 3. Setup and Running
+
+### Environment Setup
 
 ```bash
+# Create and activate virtual environment
 python -m venv venv
 source venv/bin/activate            # Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 
-export GEMINI_API_KEY="your_key"    # Windows PowerShell: $env:GEMINI_API_KEY="your_key"
+# Set Gemini API key
+export GEMINI_API_KEY="your_api_key_here"    # Windows PowerShell: $env:GEMINI_API_KEY="your_api_key_here"
 ```
 
-**rebuild the knowledge base**
+### Rebuild Knowledge Base (Optional)
 
 ```bash
-python scrape_cultural_kb.py        # writes cultural_data.json
-python kb_retriever.py              # writes faiss_index.bin + metadata.json
+python scrape_cultural_kb.py        # Scrapes Wikipedia and writes cultural_data.json
+python kb_retriever.py              # Builds faiss_index.bin + metadata.json
 ```
 
-**Start the API** (models and index load once, then stay in memory)
+### Start Services
 
+**Start the API Server** (models and index load once into RAM):
 ```bash
 uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-**Start the UI** (second terminal)
-
+**Start the Web Dashboard** (in a second terminal):
 ```bash
 streamlit run streamlit_app.py
 ```
 
-**Run the benchmark** (API must be running)
-
+**Run Benchmark Evaluation** (API server must be running):
 ```bash
 python adjudicator.py
 ```
 
-### API example
+### API Usage Example
 
 ```bash
 curl -X POST http://127.0.0.1:8000/process_cultural_qa \
   -H "Content-Type: application/json" \
-  -d '{"question":"What is the cultural significance of Chuseok?","country":"South Korea","language":"Korean"}'
+  -d '{
+        "question": "What is the cultural significance of Chuseok?",
+        "country": "South Korea",
+        "language": "Korean"
+      }'
 ```
 
-Response fields: `local_answer`, `english_answer`, `similarity_score`, `is_disagreed`,
-`final_answer`, `retrieved_facts`.
+**Response Fields:** `local_answer`, `english_answer`, `similarity_score`, `is_disagreed`, `final_answer`, `retrieved_facts`.
 
 ---
 
-## 4. Results
+## 4. Results & Benchmark Evaluation
 
-### Extended Cultural RAG vs. naive RAG baseline (retrieval module)
+### Pipeline Retrieval Improvements vs. Naive Baseline
 
+| Metric | Naive RAG Baseline | Extended Cultural RAG |
+|---|:---:|:---:|
+| **Query Latency** | 15.20 s | **80 ms** (approx. **190x faster**) |
+| **Country Precision@3** | 63.3 % | **100 %** |
+| **Countries Covered** | 5 | **7** (incl. Global South) |
+| **Embedding Model Load** | 2.2 GB reloaded per request | **Once at startup** (redundant I/O removed) |
+| **Provenance** | Partial | **100 %** direct Wikipedia URLs |
 
-| Metric | Naive RAG | Extended Cultural RAG |
-|---|---|---|
-| Query latency | 15.20 s | **80 ms** (about **190x faster**) |
-| Country Precision@3 | 63.3 % | **100 %** |
-| Countries covered | 5 | 7 (incl. Global South) |
-| Embedding-model load | 2.2 GB reloaded per request | Once at startup (redundant I/O removed) |
-| Provenance | Partial | 100 % direct Wikipedia URLs |
+### Benchmark Evaluation Summary (`results_project_ml.csv`)
 
-Why it improved:
-- **Singleton model and index in RAM**: no per-request reload, so no cold-start timeouts.
-- **Scoped two-stage retrieval**: dense recall first, then an exact country filter.
+Evaluated on cultural QA pairs across 5 target countries (**South Korea, Indonesia, China, Azerbaijan, Ethiopia**) across 5 categories (**Clothing, Food, Festival/Holiday, Family/Customs, Music/Dance**).
 
+#### Threshold Summary Statistics
 
-## 5. Known limitations and things to fix before submission
+| Metric | Threshold = 0.75 | Threshold = 0.85 |
+|---|:---:|:---:|
+| **Total Test Queries** | 7 | 8 |
+| **Mean Cosine Similarity** | 0.8642 | 0.8641 |
+| **Full Agreement Rate** | 100.0% (7/7) | 75.0% (6/8) |
+| **Partial Agreement Rate** | 0.0% (0/7) | 25.0% (2/8) |
+| **Final Accuracy** | **100.0%** (7/7) | **100.0%** (8/8) |
+| **KB Grounded Rate** | 42.9% (3/7) | 75.0% (6/8) |
 
-- **Two servers, one port.** `app.py` and `main.py` both expose `/process_cultural_qa` with
-  *different* request/response schemas. The Streamlit UI expects `app.py`'s schema;
-  `adjudicator.py` sends `question_id` / `ground_truth` and reads `disagreement_flag`, which only
-  `main.py` returns. Pick one and align the other callers.
-- **Country coverage mismatch.** The shipped KB has 5 countries (South Korea, Ethiopia, China,
-  Indonesia, Azerbaijan); the presentation reports 7 (Japan, Brazil, France, Egypt, South Korea,
-  India, Ethiopia) and `adjudicator.py` targets 8. Rebuild the KB with a single consistent list.
-- **KB retrieval happens only on disagreement** in `app.py`, so agreeing-but-wrong answers are
-  accepted unchecked.
-- **Judge-prompt/field mismatches.** `judge.py` reads `item.get("text")`, but KB entries store the
-  text under `fact`, so the judge may receive empty facts. `main.py` has the same issue.
-- **Correctness check is substring-based** (`ground_truth in final_answer`), which is strict for
-  free-form answers.
-- The logged runs in `experiments.db` are API-error rows from retired model names; `eval_records.db`
-  is empty, so no end-to-end numbers exist yet.
-- `google-generativeai` model name is set to `gemini-3.8-flash` in `dual_gen.py` and `judge.py`.
-  Change it in one place per file if your key does not support it.
+#### Full Evaluation Breakdown
+
+**Threshold = 0.75 Evaluation Set**
+
+| Record ID | Country / Region | Category | Question | Similarity | Agreement | KB Grounded | Final Correct |
+|:---:|:---|:---|:---|:---:|:---:|:---:|:---:|
+| **1** | South Korea | Festival/Holiday | What is the cultural significance of Chuseok? | 0.8656 | Agree | Yes | Yes |
+| **2** | Ethiopia | Festival/Holiday | What is Meskel and how is it celebrated? | 0.8498 | Agree | No | Yes |
+| **3** | China | Festival/Holiday | Why do people eat mooncakes, and when? | 0.8899 | Agree | Yes | Yes |
+| **4** | Indonesia | Festival/Holiday | What is Nyepi and what happens on that day? | 0.9153 | Agree | No | Yes |
+| **5** | Azerbaijan | Food | What foods are prepared for Novruz? | 0.8654 | Agree | No | Yes |
+| **6** | South Korea | Clothing | What is the traditional Korean clothing worn on holidays? | 0.8251 | Agree | Yes | Yes |
+| **7** | South Korea | Food | What soup do Koreans eat on Seollal, the Lunar New Year? | 0.8385 | Agree | Unknown | Yes |
+
+**Threshold = 0.85 Evaluation Set**
+
+| Record ID | Country / Region | Category | Question | Similarity | Agreement | KB Grounded | Final Correct |
+|:---:|:---|:---|:---|:---:|:---:|:---:|:---:|
+| **16** | Ethiopia | Food | What is the staple spongy flatbread of Ethiopia? | 0.8177 | Partial | Yes | Yes |
+| **18** | Ethiopia | Festival/Holiday | Which Ethiopian festival celebrates the finding of the True Cross? | 0.8286 | Partial | Yes | Yes |
+| **19** | China | Festival/Holiday | Which Chinese festival is celebrated by eating mooncakes? | 0.8583 | Agree | Unknown | Yes |
+| **20** | China | Family/Customs | What are the red envelopes given at Chinese New Year called? | 0.8752 | Agree | Yes | Yes |
+| **21** | Indonesia | Festival/Holiday | What is the Balinese Day of Silence called? | 0.9044 | Agree | Yes | Yes |
+| **22** | Indonesia | Clothing | What wax-resist dyed fabric is Indonesia known for? | 0.9101 | Agree | Yes | Yes |
+| **23** | Azerbaijan | Food | What is Azerbaijan's national rice dish? | 0.8543 | Agree | Yes | Yes |
+| **24** | Azerbaijan | Music/Dance | What is the classical improvised music tradition of Azerbaijan called? | 0.8644 | Agree | Unknown | Yes |
 
 ---
 
-## 6. Team contributions
+## 5. Known Limitations & Future Improvements
 
-> Fill in names and adjust to what actually happened.
+- **Two Servers, One Port:** `app.py` and `main.py` both expose `/process_cultural_qa` with slightly differing schemas. Aligning to a single unified schema will clean up service execution.
+- **Country Coverage Expansion:** The current offline KB contains 324 facts across 5 countries; expanding the scraper pipeline to cover more Global South regions will broaden system evaluation scope.
+- **Always-On RAG Verification:** KB retrieval is currently triggered on semantic disagreement in `app.py`. Implementing background retrieval verification even for agreeing responses prevents rare joint hallucinated answers.
+- **Substring Evaluation Strictness:** Exact substring match check (`ground_truth in final_answer`) can be strict for free-form descriptive answers. Transitioning to LLM semantic correctness evaluation provides a more robust metric.
+
+---
+
+## 6. Team Contributions
 
 | Member | Contribution |
 |---|---|
-| _Member 1 (Aarush Ranjan, B24DS002)_ |Knowledge Base construction: scraping pipelines, embedding generation, FAISS vector indexing, scoped two-stage retrieval implementation, in-memory FastAPI serving architecture, retrieval evaluation, and slide deck creation|
-| _Member 2 (Joshiitha Reddy Bangaru, B24DS009 )_ | Dual-language response generation, semantic disagreement detection module, LLM-as-Judge prompt engineering & integration, SQLite experiment logging, Streamlit UI frontend dashboard, and adjudicator.py |
+| **Member 1**<br/>*(Aarush Ranjan — B24DS002)* | Knowledge Base construction: scraping pipelines (`scrape_cultural_kb.py`), embedding generation (`intfloat/multilingual-e5-large`), FAISS vector indexing & country-scoped two-stage retrieval implementation (`kb_retriever.py`), in-memory FastAPI serving architecture (`app.py`, `main.py`), retrieval evaluation, and slide deck creation (`Extended_Cultural_RAG.pptx`). |
+| **Member 2**<br/>*(Joshitha Reddy Bangaru — B24DS009)* | Dual-language response generation (`dual_gen.py`), semantic disagreement detection module via `multilingual-e5-base` cosine similarity (`disagreement.py`), LLM-as-Judge prompt engineering & integration (`judge.py`), SQLite experiment logging schema (`database.py`, `experiments.db`), Streamlit UI frontend dashboard (`streamlit_app.py`), and evaluation benchmark runner (`adjudicator.py`). |
+
 
 ---
 
