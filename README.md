@@ -194,12 +194,10 @@ Evaluated on cultural QA pairs across 5 target countries (**South Korea, Indones
 
 ---
 
-## 6. Team Contributions
+## 6. Contributions
 
-| Member | Contribution |
-|---|---|
-| **Member 1**<br/>*(Aarush Ranjan — B24DS002)* | Knowledge Base construction: scraping pipelines (`scrape_cultural_kb.py`), embedding generation (`intfloat/multilingual-e5-large`), FAISS vector indexing & country-scoped two-stage retrieval implementation (`kb_retriever.py`), in-memory FastAPI serving architecture (`app.py`, `main.py`), retrieval evaluation, and slide deck creation (`Extended_Cultural_RAG.pptx`). |
-| **Member 2**<br/>*(Joshitha Reddy Bangaru — B24DS009)* | Dual-language response generation (`dual_gen.py`), semantic disagreement detection module via `multilingual-e5-base` cosine similarity (`disagreement.py`), LLM-as-Judge prompt engineering & integration (`judge.py`), SQLite experiment logging schema (`database.py`, `experiments.db`), Streamlit UI frontend dashboard (`streamlit_app.py`), and evaluation benchmark runner (`adjudicator.py`). |
+Knowledge Base construction: scraping pipelines (`scrape_cultural_kb.py`), embedding generation (`intfloat/multilingual-e5-large`), FAISS vector indexing & country-scoped two-stage retrieval implementation (`kb_retriever.py`), in-memory FastAPI serving architecture (`app.py`, `main.py`), retrieval evaluation, and slide deck creation (`Extended_Cultural_RAG.pptx`). 
+Dual-language response generation (`dual_gen.py`), semantic disagreement detection module via `multilingual-e5-base` cosine similarity (`disagreement.py`), LLM-as-Judge prompt engineering & integration (`judge.py`), SQLite experiment logging schema (`database.py`, `experiments.db`), Streamlit UI frontend dashboard (`streamlit_app.py`), and evaluation benchmark runner (`adjudicator.py`). 
 
 
 ---
